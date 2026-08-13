@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Identidade da Loja da Joaninha.
+   Vermelho da joaninha + um verde-água de "limpeza", sobre fundo bem claro.
+--------------------------------------------------------------------------- */
+@theme {
+  --color-marca-50: #fff1f2;
+  --color-marca-100: #ffe4e6;
+  --color-marca-200: #fecdd3;
+  --color-marca-300: #fda4af;
+  --color-marca-400: #fb7185;
+  --color-marca-500: #f43f5e;
+  --color-marca-600: #e11d48;
+  --color-marca-700: #be123c;
+  --color-marca-800: #9f1239;
+  --color-marca-900: #881337;
+
+  --color-agua-50: #ecfeff;
+  --color-agua-100: #cffafe;
+  --color-agua-500: #06b6d4;
+  --color-agua-600: #0891b2;
+  --color-agua-700: #0e7490;
+
+  --color-fundo: #fbf7f5;
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-fundo);
+  color: var(--color-slate-800);
+  font-family: var(--font-sans);
+  /* respiro para as barras fixas do celular */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Evita o zoom automático do Safari ao focar um campo no iPhone. */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+@layer components {
+  /* Base de todos os botões. Repetida em cada variante porque o Tailwind v4
+     não deixa dar @apply em classe criada aqui dentro. */
+  .btn,
+  .btn-primario,
+  .btn-secundario,
+  .btn-perigo {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3
+           text-base font-semibold transition-colors
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primario {
+    @apply bg-marca-600 text-white hover:bg-marca-700 active:bg-marca-800;
+  }
+  .btn-secundario {
+    @apply border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+  }
+  .btn-perigo {
+    @apply border border-red-300 bg-white text-red-700 hover:bg-red-50;
+  }
+  /* Vem depois para vencer o padding das variantes acima. */
+  .btn-sm {
+    @apply rounded-lg px-3 py-2 text-sm;
+  }
+
+  .campo {
+    @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-3
+           text-slate-900 placeholder:text-slate-400
+           focus:border-marca-500 focus:ring-2 focus:ring-marca-200 focus:outline-none;
+  }
+  .campo-erro {
+    @apply border-red-400 focus:border-red-500 focus:ring-red-200;
+  }
+  .rotulo {
+    @apply mb-1.5 block text-sm font-semibold text-slate-700;
+  }
+  .ajuda {
+    @apply mt-1 text-xs text-slate-500;
+  }
+  .msg-erro {
+    @apply mt-1.5 text-sm font-medium text-red-600;
+  }
+
+  .cartao {
+    @apply rounded-2xl border border-slate-200 bg-white shadow-sm;
+  }
+}
