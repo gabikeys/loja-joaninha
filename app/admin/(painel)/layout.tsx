@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BotaoSair } from "@/components/admin/BotaoSair";
+import { BotaoSair } from "@/components/ui/BotaoSair";
 import { NavPainel } from "@/components/admin/NavPainel";
 import { exigirAdmin } from "@/lib/admin";
 

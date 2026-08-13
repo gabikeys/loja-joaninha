@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { enviarEmailPedidoNovo } from "@/lib/email";
 import { errosPorCampo, novoPedidoSchema } from "@/lib/validation";
 import type { Order, OrderItem, StoreSettings } from "@/lib/types";
@@ -32,6 +33,20 @@ export async function POST(request: Request) {
   const quantidades = new Map<string, number>();
   for (const item of dados.items) {
     quantidades.set(item.productId, Math.min(99, (quantidades.get(item.productId) ?? 0) + item.quantity));
+  }
+
+  // Dono do pedido, quando existe. Vem SEMPRE da sessão no servidor, nunca do
+  // corpo da requisição — senão qualquer um poderia dizer que é outra pessoa.
+  // Comprar sem conta continua valendo: aí o dono fica nulo.
+  let userId: string | null = null;
+  try {
+    const comSessao = await createSupabaseServerClient();
+    const {
+      data: { user },
+    } = await comSessao.auth.getUser();
+    userId = user?.id ?? null;
+  } catch {
+    userId = null;
   }
 
   const supabase = createSupabaseAdminClient();
@@ -87,6 +102,7 @@ export async function POST(request: Request) {
     .from("orders")
     .insert({
       status: "aguardando",
+      user_id: userId,
       customer_name: dados.customerName,
       customer_phone: dados.customerPhone,
       customer_email: dados.customerEmail,

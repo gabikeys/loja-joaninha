@@ -40,6 +40,21 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now()
 );
 
+-- Dados que o cliente salva na conta dele, para o checkout vir preenchido.
+-- Ficam aqui porque criar conta é OPCIONAL: quem compra como visitante nunca
+-- passa por esta tabela.
+alter table public.profiles
+  add column if not exists full_name       text,
+  add column if not exists phone           text,
+  add column if not exists addr_street     text,
+  add column if not exists addr_number     text,
+  add column if not exists addr_complement text,
+  add column if not exists addr_district   text,
+  add column if not exists addr_city       text,
+  add column if not exists addr_reference  text,
+  add column if not exists addr_zip        text,
+  add column if not exists updated_at      timestamptz not null default now();
+
 -- SECURITY DEFINER: roda ignorando o RLS, senão a política da própria tabela
 -- profiles chamaria a si mesma em loop infinito.
 create or replace function public.is_admin()
@@ -93,6 +108,31 @@ begin
   on conflict (id) do update set role = 'admin';
 end;
 $$;
+
+-- TRAVA IMPORTANTE: o cliente pode editar o próprio perfil (nome, telefone,
+-- endereço), e sem isto ele conseguiria se promover a admin sozinho — bastaria
+-- mandar role='admin' no update. O gatilho simplesmente devolve o valor antigo.
+-- auth.uid() nulo = chamada pelo servidor/SQL Editor, aí a troca é permitida.
+create or replace function public.congela_role()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.role is distinct from old.role
+     and auth.uid() is not null
+     and not public.is_admin() then
+    new.role := old.role;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_congela_role on public.profiles;
+create trigger profiles_congela_role
+  before update on public.profiles
+  for each row execute function public.congela_role();
 
 -- ----------------------------------------------------------------------------
 -- 3. Categorias (criadas pela Joaninha no painel)
@@ -176,8 +216,14 @@ create table if not exists public.orders (
   updated_at       timestamptz not null default now()
 );
 
+-- Dono do pedido. NULO quando a compra foi feita sem conta (visitante) —
+-- criar conta é opcional, então este campo nunca pode ser obrigatório.
+alter table public.orders
+  add column if not exists user_id uuid references auth.users (id) on delete set null;
+
 create index if not exists orders_created_idx on public.orders (created_at desc);
 create index if not exists orders_status_idx  on public.orders (status);
+create index if not exists orders_user_idx    on public.orders (user_id, created_at desc);
 
 create table if not exists public.order_items (
   id               uuid primary key default gen_random_uuid(),
@@ -301,10 +347,15 @@ alter table public.orders               enable row level security;
 alter table public.order_items          enable row level security;
 alter table public.order_status_history enable row level security;
 
-drop policy if exists "perfil proprio"    on public.profiles;
-drop policy if exists "admin ve perfis"   on public.profiles;
+drop policy if exists "perfil proprio"          on public.profiles;
+drop policy if exists "admin ve perfis"         on public.profiles;
+drop policy if exists "edita proprio perfil"    on public.profiles;
 create policy "perfil proprio"  on public.profiles for select using (id = auth.uid());
 create policy "admin ve perfis" on public.profiles for select using (public.is_admin());
+-- Editar só a própria linha. A troca de "role" continua barrada pelo gatilho
+-- congela_role(), então isto não vira porta de entrada para virar admin.
+create policy "edita proprio perfil" on public.profiles
+  for update using (id = auth.uid()) with check (id = auth.uid());
 
 drop policy if exists "categorias visiveis"  on public.categories;
 drop policy if exists "admin gerencia categorias" on public.categories;
@@ -330,16 +381,38 @@ create policy "admin gerencia config" on public.store_settings
 
 drop policy if exists "admin le pedidos"       on public.orders;
 drop policy if exists "admin atualiza pedidos" on public.orders;
+drop policy if exists "cliente le proprios pedidos" on public.orders;
 create policy "admin le pedidos"       on public.orders for select using (public.is_admin());
 create policy "admin atualiza pedidos" on public.orders for update
   using (public.is_admin()) with check (public.is_admin());
+-- Cliente logado vê os pedidos que ele mesmo fez. Pedido de visitante tem
+-- user_id nulo e por isso não pertence a ninguém — só o servidor o alcança,
+-- pelo código do pedido.
+create policy "cliente le proprios pedidos" on public.orders
+  for select using (user_id is not null and user_id = auth.uid());
 
 drop policy if exists "admin le itens" on public.order_items;
+drop policy if exists "cliente le proprios itens" on public.order_items;
 create policy "admin le itens" on public.order_items for select using (public.is_admin());
+create policy "cliente le proprios itens" on public.order_items
+  for select using (
+    exists (
+      select 1 from public.orders o
+      where o.id = order_id and o.user_id is not null and o.user_id = auth.uid()
+    )
+  );
 
 drop policy if exists "admin le historico" on public.order_status_history;
+drop policy if exists "cliente le proprio historico" on public.order_status_history;
 create policy "admin le historico" on public.order_status_history
   for select using (public.is_admin());
+create policy "cliente le proprio historico" on public.order_status_history
+  for select using (
+    exists (
+      select 1 from public.orders o
+      where o.id = order_id and o.user_id is not null and o.user_id = auth.uid()
+    )
+  );
 
 -- ----------------------------------------------------------------------------
 -- 9. Storage das fotos

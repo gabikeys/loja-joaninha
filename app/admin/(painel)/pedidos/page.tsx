@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AtualizarAutomatico } from "@/components/ui/AtualizarAutomatico";
-import { EtiquetaStatus } from "@/components/admin/EtiquetaStatus";
+import { EtiquetaStatus } from "@/components/ui/EtiquetaStatus";
 import { exigirAdmin } from "@/lib/admin";
 import { formatBRL, formatDateTime } from "@/lib/format";
 import type { Order, OrderStatus } from "@/lib/types";

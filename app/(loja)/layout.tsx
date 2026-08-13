@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CarrinhoProvider } from "@/components/loja/CarrinhoProvider";
 import { BotaoCarrinho } from "@/components/loja/BotaoCarrinho";
+import { getClienteLogado, primeiroNome } from "@/lib/conta";
 import { getStoreSettings } from "@/lib/data";
 import { formatPhone, whatsappLink } from "@/lib/format";
 
@@ -12,7 +13,7 @@ import { formatPhone, whatsappLink } from "@/lib/format";
 export const dynamic = "force-dynamic";
 
 export default async function LojaLayout({ children }: { children: React.ReactNode }) {
-  const config = await getStoreSettings();
+  const [config, cliente] = await Promise.all([getStoreSettings(), getClienteLogado()]);
 
   return (
     <CarrinhoProvider>
@@ -30,7 +31,26 @@ export default async function LojaLayout({ children }: { children: React.ReactNo
                 {config.store_name}
               </span>
             </Link>
-            <BotaoCarrinho />
+            <div className="flex items-center gap-2">
+              <Link
+                href={cliente ? "/minha-conta" : "/entrar"}
+                className="flex items-center gap-1.5 rounded-xl px-2 py-2 text-sm font-semibold text-white/90 transition-colors hover:bg-white/15"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <circle cx="12" cy="8" r="3.4" stroke="currentColor" strokeWidth="1.8" />
+                  <path
+                    d="M4.5 20a7.5 7.5 0 0 1 15 0"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span className="hidden max-w-24 truncate sm:inline">
+                  {cliente ? primeiroNome(cliente) : "Entrar"}
+                </span>
+              </Link>
+              <BotaoCarrinho />
+            </div>
           </div>
 
           {config.notice.trim() && (

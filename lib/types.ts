@@ -57,10 +57,30 @@ export type OrderItem = {
   line_total_cents: number;
 };
 
+/** Conta do cliente (opcional) e também o perfil da Joaninha. */
+export type Profile = {
+  id: string;
+  email: string | null;
+  role: "admin" | "cliente";
+  full_name: string | null;
+  phone: string | null;
+  addr_street: string | null;
+  addr_number: string | null;
+  addr_complement: string | null;
+  addr_district: string | null;
+  addr_city: string | null;
+  addr_reference: string | null;
+  addr_zip: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Order = {
   id: string;
   number: number;
   code: string;
+  /** Dono do pedido. Nulo quando a compra foi feita sem conta. */
+  user_id: string | null;
   status: OrderStatus;
   customer_name: string;
   customer_phone: string;

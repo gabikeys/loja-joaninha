@@ -124,6 +124,22 @@ export const produtoSchema = z.object({
   active: z.boolean(),
 });
 
+/**
+ * Dados da conta do cliente. Tudo é opcional: ele pode criar a conta e só
+ * depois, com calma, preencher o endereço. O checkout cobra o que faltar.
+ */
+export const perfilClienteSchema = z.object({
+  fullName: opcional(80),
+  phone: telefone(false),
+  addrStreet: opcional(120),
+  addrNumber: opcional(20),
+  addrComplement: opcional(80),
+  addrDistrict: opcional(80),
+  addrCity: opcional(80),
+  addrReference: opcional(120),
+  addrZip: opcional(9),
+});
+
 export const categoriaSchema = z.object({
   name: texto(2, 60, "Escreva o nome da categoria."),
   active: z.boolean(),

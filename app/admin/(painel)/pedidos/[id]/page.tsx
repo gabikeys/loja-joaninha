@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { EtiquetaStatus } from "@/components/admin/EtiquetaStatus";
+import { EtiquetaStatus } from "@/components/ui/EtiquetaStatus";
 import { BotaoCopiar } from "@/components/ui/BotaoCopiar";
 import { FormAcao, BotaoSubmit } from "@/components/ui/FormAcao";
 import { exigirAdmin } from "@/lib/admin";

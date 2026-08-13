@@ -6,14 +6,16 @@ A Joaninha recebe um e-mail, acompanha tudo por um painel e **cadastra os
 produtos dela sozinha, pelo celular**.
 
 - **Cliente:** vitrine com busca e filtro, carrinho, checkout sem cadastro e
-  acompanhamento do pedido por um código.
+  acompanhamento do pedido por um código. Criar conta é **opcional** — quem cria
+  ganha histórico de pedidos e endereço salvo; quem não quer, compra como
+  visitante do mesmo jeito.
 - **Joaninha:** painel protegido com produtos, categorias, pedidos e
   configurações da loja.
 - **Regra de ouro do projeto:** nenhum produto depende de código, planilha, seed
   ou acesso ao banco. Tudo é cadastrado pela interface.
 
 Stack: **Next.js 16 (App Router) · Supabase (auth + Postgres + storage) ·
-Resend · Tailwind CSS 4 · Vercel**.
+Nodemailer/SMTP · Tailwind CSS 4 · Vercel**.
 
 ---
 
@@ -120,7 +122,7 @@ Em **Ajustes** você muda, quando quiser:
 
 - Node.js 20 ou superior
 - Uma conta no [Supabase](https://supabase.com) (grátis)
-- Uma conta no [Resend](https://resend.com) (grátis)
+- Uma conta Google para a loja (o e-mail sai dela)
 - Uma conta na [Vercel](https://vercel.com) para publicar
 
 ## 1. Instalar
@@ -155,17 +157,63 @@ O script pode ser rodado de novo sem quebrar nada.
 > select public.tornar_admin('email-dela@exemplo.com');
 > ```
 
-**Importante:** em **Authentication → Sign In / Providers**, desligue
-**Allow new users to sign up**. A loja não tem cadastro público — só a conta dela
-precisa existir.
+**Importante — cadastro de clientes:** em **Authentication → Sign In / Providers**,
+deixe **Allow new users to sign up** LIGADO. É o que permite o cliente criar a
+conta dele na loja.
 
-## 4. Configurar o Resend
+Isso não abre brecha no painel: o gatilho só promove a admin o **primeiro**
+usuário do projeto (a Joaninha). Todo mundo que se cadastrar depois nasce como
+`cliente`, e as telas de `/admin` exigem `role = 'admin'`.
 
-1. Pegue uma **API Key** em [resend.com](https://resend.com) → *API Keys*.
-2. Para testar já, use o remetente `onboarding@resend.dev` (ele só entrega para o
-   e-mail dono da conta Resend).
-3. Para produção, verifique o domínio da loja em *Domains* e use um remetente do
-   tipo `pedidos@sualoja.com.br`.
+Ainda em **Authentication**, considere desligar **Confirm email**. O envio de
+e-mail nativo do Supabase é limitado a poucas mensagens por hora no plano
+gratuito, e com ele ligado o cliente fica travado esperando uma confirmação que
+pode não chegar. Se quiser manter a confirmação, configure um SMTP próprio em
+**Project Settings → Authentication → SMTP Settings**.
+
+## 4. Configurar o e-mail (Gmail da loja)
+
+Os e-mails saem do **Gmail da própria loja**, por SMTP.
+
+**Por que não um serviço transacional (Resend, SendGrid...):** todos eles exigem
+um **domínio verificado** para entregar a qualquer destinatário. Sem domínio,
+eles só entregam para o dono da conta — o que faria o aviso de status **para o
+cliente** nunca chegar. Como esta loja não tem domínio próprio, mandar pelo
+Gmail dela resolve os dois casos de graça, com a reputação de entrega do Google.
+
+Na conta Google **da loja**, uma vez só:
+
+1. [myaccount.google.com](https://myaccount.google.com) → **Segurança**
+2. Ative a **Verificação em duas etapas** (sem ela o passo 3 não aparece)
+3. Procure por **Senhas de app** e crie uma chamada `Loja`
+4. O Google mostra **16 letras** — é isso que vai em `SMTP_PASSWORD`
+
+⚠️ É a **senha de app**, nunca a senha normal do Gmail. Ela dá acesso só ao
+envio de e-mail e pode ser revogada a qualquer momento nessa mesma tela.
+
+**Limite:** cerca de 500 e-mails por dia — muito acima do que uma loja de bairro
+usa. Se um dia a loja crescer e tiver domínio próprio, dá para trocar por um
+serviço transacional mexendo só em [`lib/email.ts`](lib/email.ts).
+
+### Passando o e-mail do dev para a dona da loja
+
+Durante o desenvolvimento é normal usar o Gmail do dev. Na entrega, faça esta
+troca **junto com ela** (a verificação em duas etapas pede o celular dela):
+
+1. Na conta Google **dela**: ativar a verificação em duas etapas e gerar a senha
+   de app (passos acima).
+2. Na **Vercel → Settings → Environment Variables**: trocar `SMTP_USER` e
+   `SMTP_PASSWORD` pelos dela e **fazer um novo deploy** (variável de ambiente
+   só passa a valer no deploy seguinte).
+3. No painel, em **Ajustes**, colocar o e-mail dela em *E-mail para receber os
+   pedidos*. Este ela troca sozinha quando quiser.
+4. Na conta Google **do dev**: revogar a senha de app usada nos testes. Ela
+   continua válida para sempre se ninguém revogar.
+
+⚠️ **Este é o único ponto do sistema que não é self-service.** Trocar o
+remetente exige variável de ambiente e redeploy — se um dia ela mudar de Gmail,
+vai precisar do dev. Produto, preço, foto, categoria e e-mail de destino ela
+continua trocando sozinha.
 
 ## 5. Preencher o `.env.local`
 
@@ -176,8 +224,8 @@ Todas as variáveis estão documentadas em [`.env.example`](.env.example):
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Settings → API → Project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Settings → API → chave `anon` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API → chave `service_role` (**segredo**) |
-| `RESEND_API_KEY` | Resend → API Keys |
-| `EMAIL_FROM` | Remetente verificado no Resend |
+| `SMTP_USER` | O Gmail da loja (ex: `lojadajoaninha@gmail.com`) |
+| `SMTP_PASSWORD` | A **senha de app** de 16 letras gerada no Google |
 | `EMAIL_TO_ADMIN` | Reserva, usada só enquanto o painel não tem e-mail preenchido |
 | `NEXT_PUBLIC_SITE_URL` | `http://localhost:3000` em dev; a URL da Vercel em produção |
 
@@ -222,6 +270,10 @@ app/
     checkout/                Finalizar pedido
     pedido/[codigo]/         Acompanhamento pelo código
     acompanhar/              Digitar o código do pedido
+    entrar/ criar-conta/     Conta do cliente (opcional)
+    nova-senha/              Trocar senha pelo link do e-mail
+    minha-conta/             Nome, telefone e endereço salvos
+    meus-pedidos/            Histórico de quem tem conta
   admin/
     login/                   Entrar
     nova-senha/              Trocar senha pelo link do e-mail
@@ -239,7 +291,7 @@ components/ui/               Peças reutilizáveis (campo, aviso, copiar)
 lib/
   supabase/                  Clientes: navegador, servidor e serviço
   imagem.ts                  Redimensiona e comprime a foto no celular
-  email.ts                   Modelos de e-mail (Resend)
+  email.ts                   Modelos e envio de e-mail (SMTP)
   validation.ts              Schemas zod + mensagens em português
   format.ts                  Moeda, telefone, status, endereço
 
@@ -252,7 +304,7 @@ proxy.ts                     Renova a sessão e protege /admin
 
 | Tabela | Para quê |
 |---|---|
-| `profiles` | Quem é admin (`role = 'admin'`) |
+| `profiles` | Quem é admin (`role = 'admin'`) e os dados salvos da conta do cliente (nome, telefone, endereço) |
 | `categories` | Categorias da vitrine, com ordem e ativo/inativo |
 | `products` | Produtos: nome, descrição, tamanho, preço em centavos, foto, ordem, ativo |
 | `store_settings` | Linha única com nome, WhatsApp, e-mail, entrega, horário e recado |
@@ -275,9 +327,15 @@ Detalhes que valem saber:
 - **RLS ligado em todas as tabelas.**
 - Catálogo (`products`, `categories`): leitura pública apenas do que está ativo;
   escrita só para admin.
-- Pedidos: **nenhuma leitura pelo navegador**. O cliente só vê o pedido dele
-  através do servidor, informando o código. Sem isso, qualquer visitante poderia
-  listar o endereço e o telefone de todos os clientes.
+- Pedidos: um visitante **não lê nada** pelo navegador — só enxerga o pedido
+  dele através do servidor, informando o código. Cliente logado lê apenas os
+  pedidos com `user_id` igual ao dele, pelo RLS. Sem isso, qualquer visitante
+  poderia listar o endereço e o telefone de todos os clientes.
+- **O cliente não consegue se promover a admin.** Ele pode editar o próprio
+  perfil (nome, telefone, endereço), e o gatilho `congela_role()` devolve o
+  valor antigo se alguém tentar mandar `role='admin'` no update.
+- O dono do pedido (`user_id`) vem **sempre da sessão no servidor**, nunca do
+  corpo da requisição — senão daria para dizer que é outra pessoa.
 - `store_settings` guarda o e-mail da dona, então também não é pública — o site
   lê pelo servidor e mostra ao cliente só o que é público.
 - A chave `service_role` fica **somente no servidor** (`lib/supabase/admin.ts`,
@@ -290,7 +348,7 @@ Detalhes que valem saber:
 - **Foto tratada no aparelho** (`lib/imagem.ts`): corrige a rotação da câmera
   (EXIF), reduz para 1280px no lado maior e comprime em WebP até ~300 KB antes de
   subir. É o que faz o upload ser rápido no 4G.
-- **O e-mail nunca derruba o pedido.** Se o Resend falhar, o pedido já está salvo
+- **O e-mail nunca derruba o pedido.** Se o envio falhar, o pedido já está salvo
   e aparece no painel do mesmo jeito; a falha só vai para o log.
 - **Carrinho no `localStorage`**, sem necessidade de conta.
 - **A tela de acompanhamento se atualiza sozinha** enquanto o pedido está aberto.
@@ -300,7 +358,7 @@ Detalhes que valem saber:
 | Sintoma | Causa provável |
 |---|---|
 | "Variável de ambiente ausente: ..." | Falta preencher o `.env.local` (ou as variáveis na Vercel) |
-| O e-mail de pedido novo não chega | `RESEND_API_KEY` errada, ou o e-mail em **Ajustes** está vazio, ou o remetente não é de um domínio verificado |
+| O e-mail de pedido novo não chega | `SMTP_USER`/`SMTP_PASSWORD` errados, ou o e-mail em **Ajustes** está vazio. Confira se usou a *senha de app*, e não a senha normal do Gmail |
 | Links do e-mail apontam para `localhost` | `NEXT_PUBLIC_SITE_URL` não foi ajustado na Vercel |
 | A foto não sobe | O schema não foi rodado (falta o bucket `produtos`) ou a conta não é admin |
 | Cai em "Esta conta não tem acesso ao painel" | O usuário não tem `role = 'admin'`; rode `select public.tornar_admin('email');` |

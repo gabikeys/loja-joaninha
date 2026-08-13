@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BotaoSair } from "@/components/admin/BotaoSair";
+import { BotaoSair } from "@/components/ui/BotaoSair";
 
 export const metadata = { title: "Sem acesso — Painel" };
 

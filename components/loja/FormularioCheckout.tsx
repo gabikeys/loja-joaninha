@@ -18,21 +18,31 @@ const PAGAMENTOS: { valor: PaymentMethod; emoji: string }[] = [
   { valor: "cartao", emoji: "💳" },
 ];
 
-export function FormularioCheckout({ infoEntrega }: { infoEntrega: string }) {
+export type DadosIniciaisCheckout = {
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  addrZip: string;
+  addrStreet: string;
+  addrNumber: string;
+  addrComplement: string;
+  addrDistrict: string;
+  addrCity: string;
+  addrReference: string;
+};
+
+type PropsCheckout = {
+  infoEntrega: string;
+  logado: boolean;
+  dadosIniciais: DadosIniciaisCheckout;
+};
+
+export function FormularioCheckout({ infoEntrega, logado, dadosIniciais }: PropsCheckout) {
   const router = useRouter();
   const { itens, carregado, totalCentavos, limpar } = useCarrinho();
 
   const [form, setForm] = useState({
-    customerName: "",
-    customerPhone: "",
-    customerEmail: "",
-    addrZip: "",
-    addrStreet: "",
-    addrNumber: "",
-    addrComplement: "",
-    addrDistrict: "",
-    addrCity: "",
-    addrReference: "",
+    ...dadosIniciais,
     notes: "",
     trocoPara: "",
   });
@@ -127,6 +137,24 @@ export function FormularioCheckout({ infoEntrega }: { infoEntrega: string }) {
         >
           {erroGeral}
         </div>
+      )}
+
+      {logado ? (
+        <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+          ✅ Preenchemos com os dados da sua conta. Confira e mude o que precisar — este
+          pedido vai ficar guardado em <strong>Meus pedidos</strong>.
+        </p>
+      ) : (
+        <p className="rounded-xl bg-agua-50 p-3 text-sm text-agua-700">
+          Pode pedir assim mesmo, sem conta.{" "}
+          <Link
+            href="/entrar?proximo=/checkout"
+            className="font-semibold text-agua-700 underline"
+          >
+            Se preferir, entre na sua conta
+          </Link>{" "}
+          para o endereço vir preenchido e guardar o pedido no seu histórico.
+        </p>
       )}
 
       {/* ------------------------------------------------ resumo */}

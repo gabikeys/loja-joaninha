@@ -4,7 +4,18 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
-export function BotaoSair({ className = "btn-secundario btn-sm" }: { className?: string }) {
+type Props = {
+  /** Para onde ir depois de sair. */
+  destino?: string;
+  rotulo?: string;
+  className?: string;
+};
+
+export function BotaoSair({
+  destino = "/admin/login",
+  rotulo = "Sair",
+  className = "btn-secundario btn-sm",
+}: Props) {
   const router = useRouter();
   const [saindo, setSaindo] = useState(false);
 
@@ -12,13 +23,13 @@ export function BotaoSair({ className = "btn-secundario btn-sm" }: { className?:
     setSaindo(true);
     const supabase = createSupabaseBrowserClient();
     await supabase.auth.signOut();
-    router.push("/admin/login");
+    router.push(destino);
     router.refresh();
   }
 
   return (
     <button type="button" onClick={sair} disabled={saindo} className={className}>
-      {saindo ? "Saindo..." : "Sair"}
+      {saindo ? "Saindo..." : rotulo}
     </button>
   );
 }

@@ -1,5 +1,5 @@
 import "server-only";
-import { Resend } from "resend";
+import nodemailer, { type Transporter } from "nodemailer";
 import { siteUrl } from "@/lib/env";
 import {
   PAYMENT_LABEL,
@@ -13,22 +13,78 @@ import {
 import type { Order, OrderItem, StoreSettings } from "@/lib/types";
 
 /**
- * Envio de e-mail. Tudo aqui é "melhor esforço": se o Resend estiver fora do ar
- * ou sem chave, o PEDIDO NÃO PODE SE PERDER. Por isso nada aqui lança erro
- * para cima — apenas registra no log do servidor.
+ * Envio de e-mail por SMTP — na prática, pelo Gmail da própria loja.
+ *
+ * Escolhemos SMTP em vez de um serviço transacional porque a loja não tem
+ * domínio próprio. Sem domínio verificado, serviços como o Resend só entregam
+ * para o dono da conta, e o aviso de status para o CLIENTE nunca chegaria.
+ * Mandando pelo Gmail da loja, ela e os clientes recebem normalmente.
+ *
+ * Tudo aqui é "melhor esforço": se o e-mail falhar, o PEDIDO NÃO PODE SE
+ * PERDER. Por isso nada aqui lança erro para cima — apenas registra no log.
  */
 
-function getResend(): Resend | null {
-  const chave = process.env.RESEND_API_KEY;
-  if (!chave) {
-    console.warn("[email] RESEND_API_KEY não configurada — e-mail não enviado.");
+let transporteCache: Transporter | null = null;
+
+function getTransporte(): Transporter | null {
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASSWORD;
+
+  if (!user || !pass) {
+    console.warn(
+      "[email] SMTP_USER/SMTP_PASSWORD não configurados — e-mail não enviado."
+    );
     return null;
   }
-  return new Resend(chave);
+
+  if (!transporteCache) {
+    const port = Number(process.env.SMTP_PORT || 465);
+    transporteCache = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || "smtp.gmail.com",
+      port,
+      secure: port === 465, // 465 = TLS direto; 587 = STARTTLS
+      auth: { user, pass },
+    });
+  }
+
+  return transporteCache;
 }
 
+/**
+ * O Gmail obriga o remetente a ser a própria conta autenticada — se mandarmos
+ * outro endereço, ele reescreve. Por isso o nome bonito vem do painel e o
+ * endereço vem sempre do SMTP_USER.
+ */
 function remetente(config: StoreSettings): string {
-  return process.env.EMAIL_FROM || `${config.store_name} <onboarding@resend.dev>`;
+  const endereco = process.env.SMTP_USER ?? "";
+  const nome = (config.store_name || "Loja").replace(/["<>]/g, "");
+  return `"${nome}" <${endereco}>`;
+}
+
+type Mensagem = {
+  para: string;
+  assunto: string;
+  html: string;
+  texto: string;
+  responderPara?: string;
+};
+
+async function enviar(config: StoreSettings, msg: Mensagem): Promise<void> {
+  const transporte = getTransporte();
+  if (!transporte) return;
+
+  try {
+    await transporte.sendMail({
+      from: remetente(config),
+      to: msg.para,
+      replyTo: msg.responderPara,
+      subject: msg.assunto,
+      html: msg.html,
+      text: msg.texto,
+    });
+  } catch (e) {
+    console.error("[email] Falha no envio:", e instanceof Error ? e.message : e);
+  }
 }
 
 function escapar(texto: string): string {
@@ -91,10 +147,8 @@ export async function enviarEmailPedidoNovo(
   itens: OrderItem[],
   config: StoreSettings
 ): Promise<void> {
-  const resend = getResend();
   const para = destinatarioAdmin(config);
 
-  if (!resend) return;
   if (!para) {
     console.warn(
       "[email] Nenhum e-mail de destino. Preencha em Configurações no painel ou EMAIL_TO_ADMIN."
@@ -182,19 +236,13 @@ export async function enviarEmailPedidoNovo(
     .filter((l) => l !== "")
     .join("\n");
 
-  try {
-    const { error } = await resend.emails.send({
-      from: remetente(config),
-      to: para,
-      replyTo: pedido.customer_email ?? undefined,
-      subject: `🐞 Pedido novo #${pedido.number} — ${pedido.customer_name} — ${formatBRL(pedido.total_cents)}`,
-      html,
-      text: texto,
-    });
-    if (error) console.error("[email] Falha ao avisar do pedido novo:", error);
-  } catch (e) {
-    console.error("[email] Erro inesperado ao avisar do pedido novo:", e);
-  }
+  await enviar(config, {
+    para,
+    responderPara: pedido.customer_email ?? undefined,
+    assunto: `🐞 Pedido novo #${pedido.number} — ${pedido.customer_name} — ${formatBRL(pedido.total_cents)}`,
+    html,
+    texto,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -205,9 +253,6 @@ export async function enviarEmailStatusParaCliente(
   config: StoreSettings
 ): Promise<void> {
   if (!pedido.customer_email) return;
-
-  const resend = getResend();
-  if (!resend) return;
 
   const link = `${siteUrl()}/pedido/${pedido.code}`;
   const primeiroNome = pedido.customer_name.split(" ")[0];
@@ -240,18 +285,12 @@ export async function enviarEmailStatusParaCliente(
     </div>
   </div>`;
 
-  try {
-    const { error } = await resend.emails.send({
-      from: remetente(config),
-      to: pedido.customer_email,
-      subject: `Pedido #${pedido.number}: ${STATUS_LABEL[pedido.status]}`,
-      html,
-      text: `${STATUS_MESSAGE[pedido.status]}\n\nPedido #${pedido.number} (${pedido.code})\nTotal: ${formatBRL(
-        pedido.total_cents
-      )}\n\nAcompanhe em: ${link}`,
-    });
-    if (error) console.error("[email] Falha ao avisar o cliente:", error);
-  } catch (e) {
-    console.error("[email] Erro inesperado ao avisar o cliente:", e);
-  }
+  await enviar(config, {
+    para: pedido.customer_email,
+    assunto: `Pedido #${pedido.number}: ${STATUS_LABEL[pedido.status]}`,
+    html,
+    texto: `${STATUS_MESSAGE[pedido.status]}\n\nPedido #${pedido.number} (${pedido.code})\nTotal: ${formatBRL(
+      pedido.total_cents
+    )}\n\nAcompanhe em: ${link}`,
+  });
 }
