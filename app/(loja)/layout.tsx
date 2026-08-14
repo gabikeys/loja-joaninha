@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
 
 export default async function LojaLayout({ children }: { children: React.ReactNode }) {
   const [config, cliente] = await Promise.all([getStoreSettings(), getClienteLogado()]);
+  const ehAdmin = cliente?.perfil?.role === "admin";
 
   return (
     <CarrinhoProvider>
@@ -57,6 +58,24 @@ export default async function LojaLayout({ children }: { children: React.ReactNo
             <p className="bg-marca-800/40 px-4 py-2 text-center text-sm">
               {config.notice}
             </p>
+          )}
+
+          {/*
+            A dona da loja navegando pela loja precisa de um caminho VISÍVEL de
+            volta ao painel. Sem isto ela teria que digitar /admin na barra de
+            endereço — que é justamente o tipo de coisa que ela não deveria
+            precisar saber.
+          */}
+          {ehAdmin && (
+            <div className="flex items-center justify-center gap-3 bg-slate-900 px-4 py-2 text-sm">
+              <span className="text-slate-300">Você é a dona desta loja</span>
+              <Link
+                href="/admin/pedidos"
+                className="rounded-lg bg-white px-3 py-1.5 font-bold text-slate-900 hover:bg-slate-100"
+              >
+                Abrir meu painel →
+              </Link>
+            </div>
           )}
         </header>
 

@@ -26,6 +26,22 @@ export default async function PaginaMinhaConta({
 
       {msg === "salvo" && <Aviso tipo="sucesso">Seus dados foram salvos!</Aviso>}
 
+      {cliente.perfil?.role === "admin" && (
+        <div className="mb-5 rounded-2xl border-2 border-slate-900 bg-slate-900 p-4 text-white">
+          <p className="font-bold">🐞 Você é a dona da loja</p>
+          <p className="mt-1 mb-3 text-sm text-slate-300">
+            Esta tela é a sua conta de cliente. Para cadastrar produtos, ver os pedidos que
+            chegaram e mudar as configurações, use o painel.
+          </p>
+          <Link
+            href="/admin/pedidos"
+            className="btn-primario w-full bg-white text-slate-900 hover:bg-slate-100"
+          >
+            Abrir o painel da loja
+          </Link>
+        </div>
+      )}
+
       <Link href="/meus-pedidos" className="btn-secundario mb-5 w-full justify-between">
         <span>📦 Meus pedidos</span>
         <span aria-hidden="true">→</span>
