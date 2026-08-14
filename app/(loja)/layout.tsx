@@ -67,13 +67,25 @@ export default async function LojaLayout({ children }: { children: React.ReactNo
             precisar saber.
           */}
           {ehAdmin && (
-            <div className="flex items-center justify-center gap-3 bg-slate-900 px-4 py-2 text-sm">
-              <span className="text-slate-300">Você é a dona desta loja</span>
+            <div className="flex flex-wrap items-center justify-center gap-2 bg-slate-900 px-4 py-2 text-sm">
+              <span className="mr-1 text-slate-300">Você é a dona desta loja:</span>
               <Link
-                href="/admin/pedidos"
+                href="/admin/produtos/novo"
                 className="rounded-lg bg-white px-3 py-1.5 font-bold text-slate-900 hover:bg-slate-100"
               >
-                Abrir meu painel →
+                + Cadastrar produto
+              </Link>
+              <Link
+                href="/admin/produtos"
+                className="rounded-lg border border-slate-600 px-3 py-1.5 font-semibold text-white hover:bg-slate-800"
+              >
+                Meus produtos
+              </Link>
+              <Link
+                href="/admin/pedidos"
+                className="rounded-lg border border-slate-600 px-3 py-1.5 font-semibold text-white hover:bg-slate-800"
+              >
+                Pedidos
               </Link>
             </div>
           )}
